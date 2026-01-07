@@ -12,25 +12,25 @@ class TicketController {
       // Check event
       const event = await Event.findByPk(eventId);
       if (!event) {
-        return res.status(404).json({ 
-          success: false, 
-          message: 'Event not found' 
+        return res.status(404).json({
+          success: false,
+          message: 'Event not found'
         });
       }
 
       if (event.availableTickets <= 0) {
-        return res.status(400).json({ 
-          success: false, 
-          message: 'No tickets available' 
+        return res.status(400).json({
+          success: false,
+          message: 'No tickets available'
         });
       }
 
       // Check user wallet
       const user = await User.findByPk(userId);
       if (!user.walletAddress) {
-        return res.status(400).json({ 
-          success: false, 
-          message: 'Please connect wallet first' 
+        return res.status(400).json({
+          success: false,
+          message: 'Please connect wallet first'
         });
       }
 
@@ -86,12 +86,12 @@ class TicketController {
     try {
       const userId = req.user.id;
       const user = await User.findByPk(userId);
-  
+
       // If user has wallet, sync tickets from blockchain first
       if (user.walletAddress) {
         await this.syncUserTickets(user);
       }
-  
+
       const tickets = await Ticket.findAll({
         where: { userId, status: 'minted' },
         include: [{
@@ -99,7 +99,7 @@ class TicketController {
           attributes: ['title', 'date', 'venue']
         }]
       });
-  
+
       res.json({ success: true, tickets });
     } catch (error) {
       res.status(500).json({ success: false, message: error.message });
@@ -111,7 +111,7 @@ class TicketController {
       const { tokenId } = req.params;
 
       const ownerResult = await web3Service.getTicketOwner(tokenId);
-      
+
       if (ownerResult.success) {
         const ticket = await Ticket.findOne({
           where: { nftTokenId: tokenId },
@@ -126,10 +126,10 @@ class TicketController {
           status: ticket?.status || 'unknown'
         });
       } else {
-        res.json({ 
-          success: false, 
-          valid: false, 
-          error: ownerResult.error 
+        res.json({
+          success: false,
+          valid: false,
+          error: ownerResult.error
         });
       }
     } catch (error) {
@@ -141,19 +141,19 @@ class TicketController {
     try {
       const { ticketId, toAddress } = req.body;
       const userId = req.user.id;
-  
+
       // Find the ticket
       const ticket = await Ticket.findOne({
         where: { id: ticketId, userId, status: 'minted' }
       });
-  
+
       if (!ticket) {
         return res.status(404).json({
           success: false,
           message: 'Ticket not found or not owned by you'
         });
       }
-  
+
       // Get sender's wallet
       const user = await User.findByPk(userId);
       if (!user.walletAddress) {
@@ -162,24 +162,24 @@ class TicketController {
           message: 'Your wallet is not connected'
         });
       }
-  
+
       // Normalize destination address
       const { ethers } = require('ethers');
       const normalizedToAddress = ethers.getAddress(toAddress.toLowerCase());
-  
+
       // Transfer NFT on blockchain
       const transferResult = await web3Service.transferTicket(
         user.walletAddress,
         normalizedToAddress,
         ticket.nftTokenId
       );
-  
+
       if (transferResult.success) {
         // Check if destination wallet belongs to an existing user
         const newOwner = await User.findOne({
           where: { walletAddress: normalizedToAddress }
         });
-  
+
         if (newOwner) {
           // Transfer to existing user - update ownership
           ticket.userId = newOwner.id;
@@ -188,13 +188,13 @@ class TicketController {
           // External wallet - mark as transferred (no user account)
           ticket.status = 'transferred';
         }
-        
+
         ticket.txHash = transferResult.txHash;
         await ticket.save();
-  
+
         res.json({
           success: true,
-          message: newOwner 
+          message: newOwner
             ? `Ticket transferred to ${newOwner.name}!`
             : 'Ticket transferred to external wallet!',
           txHash: transferResult.txHash,
@@ -213,22 +213,26 @@ class TicketController {
   }
   async syncTransfer(req, res) {
     try {
-      const { ticketId, toAddress } = req.body;
+      const { tokenId, toAddress } = req.body;
       const userId = req.user.id;
 
+      // Find by nftTokenId AND verify ownership
       const ticket = await Ticket.findOne({
-        where: { id: ticketId, userId }
+        where: { nftTokenId: tokenId, userId }
       });
 
       if (!ticket) {
         return res.status(404).json({
           success: false,
-          message: 'Ticket not found'
+          message: 'Ticket not found or you are not the owner'
         });
       }
 
       const { ethers } = require('ethers');
       const normalizedToAddress = ethers.getAddress(toAddress.toLowerCase());
+
+      // Update wallet address
+      ticket.walletAddress = normalizedToAddress;
 
       const newOwner = await User.findOne({
         where: { walletAddress: normalizedToAddress }
@@ -243,7 +247,7 @@ class TicketController {
 
       await ticket.save();
 
-      res.json({ success: true, message: 'Database synced' });
+      res.json({ success: true, message: 'Database synced with blockchain' });
     } catch (error) {
       res.status(500).json({ success: false, message: error.message });
     }
@@ -255,24 +259,24 @@ class TicketController {
         console.log('No wallet address, skipping sync');
         return;
       }
-  
+
       const { ethers } = require('ethers');
-      
+
       // Get all minted tickets from DB
       const allTickets = await Ticket.findAll({
         where: { status: 'minted' }
       });
-  
+
       const userWallet = user.walletAddress.toLowerCase();
-  
+
       for (const ticket of allTickets) {
         try {
           // Check who owns this token on blockchain
           const ownerResult = await web3Service.getTicketOwner(ticket.nftTokenId);
-          
+
           if (ownerResult.success && ownerResult.owner) {
             const blockchainOwner = ownerResult.owner.toLowerCase();
-  
+
             // If blockchain says this user owns the ticket, update DB
             if (blockchainOwner === userWallet && ticket.userId !== user.id) {
               ticket.userId = user.id;
@@ -280,16 +284,16 @@ class TicketController {
               await ticket.save();
               console.log(`✅ Synced ticket #${ticket.id} to user ${user.id}`);
             }
-            
+
             // If blockchain says different owner, and DB says this user owns it
             if (blockchainOwner !== userWallet && ticket.userId === user.id) {
               try {
                 // Find the actual owner in our system (simple query)
                 const users = await User.findAll();
-                const actualOwner = users.find(u => 
+                const actualOwner = users.find(u =>
                   u.walletAddress && u.walletAddress.toLowerCase() === blockchainOwner
                 );
-                
+
                 if (actualOwner) {
                   ticket.userId = actualOwner.id;
                   await ticket.save();
