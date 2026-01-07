@@ -81,7 +81,6 @@ app.get('/', (req, res) => {
         'POST /api/v1/tickets/mint',
         'GET /api/v1/tickets/:tokenId',
         'GET /api/v1/tickets/verify/:tokenId',
-        'POST /api/v1/tickets/transfer',
         'GET /api/v1/blockchain/tx/:txHash'
       ]
     }
@@ -91,7 +90,7 @@ app.get('/', (req, res) => {
 // Sync database & start server
 const PORT = process.env.PORT || 3000;
 
-sequelize.sync({ alter: true })
+sequelize.sync()
   .then(() => {
     console.log('✅ Database synced!');
     app.listen(PORT, () => {
@@ -100,3 +99,4 @@ sequelize.sync({ alter: true })
     });
   })
   .catch(err => console.error('❌ Database sync error:', err));
+
