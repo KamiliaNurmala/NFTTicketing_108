@@ -727,12 +727,32 @@ class Web3Service {
 
       const receipt = await this.provider.getTransactionReceipt(txHash);
 
+      // Try to get the actual recipient from Transfer event logs
+      let recipient = null;
+      let tokenId = null;
+
+      if (receipt && receipt.logs) {
+        // Transfer event signature: Transfer(address indexed from, address indexed to, uint256 indexed tokenId)
+        const transferTopic = ethers.id('Transfer(address,address,uint256)');
+
+        for (const log of receipt.logs) {
+          if (log.topics[0] === transferTopic && log.topics.length >= 4) {
+            // Decode the 'to' address from topics[2]
+            recipient = ethers.getAddress('0x' + log.topics[2].slice(-40));
+            // Decode tokenId from topics[3]
+            tokenId = parseInt(log.topics[3], 16);
+            break;
+          }
+        }
+      }
+
       return {
         success: true,
         transaction: {
           hash: tx.hash,
           from: tx.from,
-          to: tx.to,
+          to: recipient || tx.to, // Use decoded recipient if available, otherwise contract
+          tokenId: tokenId,
           value: tx.value.toString(),
           gasPrice: tx.gasPrice?.toString(),
           status: receipt ? (receipt.status === 1 ? 'confirmed' : 'failed') : 'pending',
