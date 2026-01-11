@@ -109,7 +109,29 @@ Sistem tiket berbasis NFT (Non-Fungible Token) yang menyediakan:
 
 ---
 
-## 🔌 API Endpoints
+## �️ Database Tables (MySQL)
+
+### Admins Table
+![Admins Table](ss-ticket/Sql/tablesql-admin.png)
+
+### Users Table
+![Users Table](ss-ticket/Sql/tablesql-users.png)
+
+### Developers Table
+![Developers Table](ss-ticket/Sql/tablesql-developers.png)
+
+### Events Table
+![Events Table](ss-ticket/Sql/tablesql-events.png)
+
+### Tickets Table
+![Tickets Table](ss-ticket/Sql/tablesql-tickets.png)
+
+### API Usage Logs Table
+![API Usage Logs Table](ss-ticket/Sql/tablesql-apiusagelogs.png)
+
+---
+
+## �🔌 API Endpoints
 
 Base URL: `http://localhost:3000`
 
